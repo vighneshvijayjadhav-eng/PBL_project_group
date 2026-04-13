@@ -1,0 +1,15 @@
+[
+  "claim_amount",
+  "policy_tenure_months",
+  "premium_to_claim_ratio",
+  "previous_claims_count",
+  "previous_fraud_flag",
+  "incident_severity",
+  "hospitalization_required",
+  "police_report_filed",
+  "document_count",
+  "claim_submission_delay_days",
+  "claimant_age",
+  "claimant_gender",
+  "claimant_location"
+]
