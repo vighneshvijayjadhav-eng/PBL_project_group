@@ -4,12 +4,15 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import Base, engine
-from app.dependencies import AppException, build_response
+from app.database import Base, SessionLocal, engine
+from app.dependencies import AppException, build_response, get_password_hash
+from app.models import User, UserRole
 from app.routers import auth, claims, policies, system, users
 from app.services.rate_limiter import is_rate_limited
 
@@ -18,6 +21,59 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+DUMMY_USERS = [
+    {
+        "name": "Test Admin",
+        "email": "admin@gmail.com",
+        "role": UserRole.admin,
+        "password": "AdminPass123!",
+    },
+    {
+        "name": "Test Adjuster",
+        "email": "adjuster@gmail.com",
+        "role": UserRole.adjuster,
+        "password": "AdjusterPass123!",
+    },
+    {
+        "name": "Test Policyholder",
+        "email": "policyholder@gmail.com",
+        "role": UserRole.policyholder,
+        "password": "PolicyholderPass123!",
+    },
+]
+
+LEGACY_DUMMY_EMAILS = {
+    "admin@test.local",
+    "adjuster@test.local",
+    "policyholder@test.local",
+}
+
+
+def seed_dummy_users(db: Session) -> int:
+    created_count = 0
+
+    legacy_users = db.query(User).filter(User.email.in_(LEGACY_DUMMY_EMAILS)).all()
+    for user in legacy_users:
+        db.delete(user)
+
+    for user_data in DUMMY_USERS:
+        existing = db.query(User).filter(User.email == user_data["email"]).first()
+        if existing:
+            continue
+
+        db_user = User(
+            name=user_data["name"],
+            email=user_data["email"],
+            role=user_data["role"],
+            hashed_password=get_password_hash(user_data["password"]),
+        )
+        db.add(db_user)
+        created_count += 1
+
+    if legacy_users or created_count:
+        db.commit()
+    return created_count
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
@@ -75,13 +131,23 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="Insurance Claim Processing & Risk Profiling System")
 app.add_middleware(RequestContextMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allow_origins,
+    allow_credentials=settings.cors_allow_credentials,
+    allow_methods=settings.cors_allow_methods,
+    allow_headers=settings.cors_allow_headers,
+)
 
 
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        created = seed_dummy_users(db)
     logger.info("Database connected")
     logger.info("Risk engine ready")
+    logger.info("Dummy users seeded created=%s", created)
 
 
 @app.exception_handler(AppException)
