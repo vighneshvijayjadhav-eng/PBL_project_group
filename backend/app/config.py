@@ -49,6 +49,29 @@ class Settings(BaseSettings):
     risk_weight_ml: float = Field(default=float(os.getenv("RISK_WEIGHT_ML", "0.6")), env="RISK_WEIGHT_ML")
     risk_weight_rb: float = Field(default=float(os.getenv("RISK_WEIGHT_RB", "0.4")), env="RISK_WEIGHT_RB")
     max_upload_size_mb: int = Field(default=int(os.getenv("MAX_UPLOAD_SIZE_MB", "10")), env="MAX_UPLOAD_SIZE_MB")
+    cors_allow_origins: list[str] = Field(
+        default_factory=lambda: [
+            origin.strip()
+            for origin in os.getenv(
+                "CORS_ALLOW_ORIGINS",
+                "http://localhost:5173,http://127.0.0.1:5173",
+            ).split(",")
+            if origin.strip()
+        ],
+        env="CORS_ALLOW_ORIGINS",
+    )
+    cors_allow_methods: list[str] = Field(
+        default_factory=lambda: ["*"],
+        env="CORS_ALLOW_METHODS",
+    )
+    cors_allow_headers: list[str] = Field(
+        default_factory=lambda: ["*"],
+        env="CORS_ALLOW_HEADERS",
+    )
+    cors_allow_credentials: bool = Field(
+        default=True,
+        env="CORS_ALLOW_CREDENTIALS",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
